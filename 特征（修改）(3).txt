@@ -1,0 +1,41 @@
+def get_demical(x):
+    return modf(x)[0]
+def feat(data):
+    feat=['Frequency Band','RS Power','Cell Clutter Index','Clutter Index']
+    lambdaf=299792458/data['Frequency Band']/1e6
+    train_x=data.loc[:,feat]
+    train_x['d']=5*np.sqrt((data['Cell X']-data['X'])**2+(data['Cell Y']-data['Y'])**2)
+    train_x['Hb']=data['Cell Altitude']+data['Cell Building Height']
+    train_x['Hue']=data['Altitude']+data['Building Height']
+    train_x['Hb-Hue']=train_x['Hb']-train_x['Hue']
+    train_x['thetaME']=np.radians(data['Mechanical Downtilt']+data['Electrical Downtilt'])
+    train_x['dHv']=train_x['Hb']-train_x['d']*np.tan(train_x['thetaME'])
+    train_x['Hb-Hue-dHv']=train_x['Hb-Hue']-train_x['dHv']
+    train_x['Hue-dHv']=train_x['Hue']-train_x['dHv']
+    train_x['theta_uc']=np.arctan2(train_x['Hb-Hue'],train_x['d'])
+    train_x['log_Hb']=np.log10(train_x['Hb']+1)
+    train_x['log_Hue']=np.log10(train_x['Hue']+1) 
+    train_x['log_Hb-Hue-dHv']=np.log10(abs(train_x['Hb-Hue-dHv'])+1)
+    
+    train_x['Azimuth_rad']=np.radians(data['Azimuth'])
+    train_x['dX']=data['X']-data['Cell X']
+    train_x['dY']=data['Y']-data['Cell Y']
+    train_x['theta_XY']=np.arctan2(train_x['dX'],train_x['dY'])
+    train_x['theta_XY'].loc[train_x['dY']<0]=train_x['theta_XY'].loc[train_x['dY']<0]+pi
+    train_x['theta_XY'].loc[(train_x['dY']>=0)&(train_x['dX']<0)]=train_x['theta_XY'].loc[(train_x['dY']>=0)&(train_x['dX']<0)]+2*pi
+    train_x['theta_XY_A']=train_x['theta_XY']-train_x['Azimuth_rad']
+    
+    train_x['Larc']=np.sin(train_x['theta_XY_A']/2)*train_x['d']
+    train_x['theta_T']=np.arctan2(train_x['Hue-dHv'],train_x['Larc'])
+    train_x['logLarc']=np.log10(abs(train_x['Larc'])+1)
+    train_x['dAmplitude']=data['RS Power']*np.cos(train_x['thetaME'])*np.cos(2*pi*((train_x['d']/lambdaf).map(get_demical)))
+    train_x['LarcAmplitude']=train_x['dAmplitude']*np.sin(train_x['theta_XY_A']/2)*np.cos(2*pi*((train_x['Larc']/lambdaf).map(get_demical)))
+    train_x['dHvAmplitude']=train_x['dAmplitude']*np.cos(2*pi*((train_x['dHv']/lambdaf).map(get_demical)))
+    train_x['Hb-Hue-dHvAmplitude']=train_x['dAmplitude']*np.cos(2*pi*((train_x['Hb-Hue-dHv']/lambdaf).map(get_demical)))
+    feat_drop=['d','Hb','Hue','Hb-Hue','Hb-Hue-dHv','dHv',
+               'Hue-dHv','Azimuth_rad','theta_XY','dX','dY','Larc']
+    train_x=train_x.drop(feat_drop,axis=1)
+    return train_x
+#特征初步挑选
+features=[ 'Cell Clutter Index', 'Clutter Index','theta_uc','log_Hb','log_Hue',
+          'log_Hb-Hue-dHv', 'theta_XY_A', 'theta_T', 'logLarc', 'dHvAmplitude']

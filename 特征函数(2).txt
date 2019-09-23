@@ -1,0 +1,34 @@
+def feat(data):
+    features=['Frequency Band','RS Power','Cell Clutter Index','Clutter Index']
+    train_x=data.loc[:,features]
+    train_x['d']=5*np.sqrt((data['Cell X']-data['X'])**2+(data['Cell Y']-data['Y'])**2)
+    train_x['Hb']=data['Cell Altitude']+data['Cell Building Height']+data['Altitude']
+    train_x['Hue']=data['Altitude']+data['Building Height']
+    train_x['Hb-Hue']=train_x['Hb']-train_x['Hue']
+    train_x['thetaM']=np.radians(data['Mechanical Downtilt'])
+    train_x['thetaE']=np.radians(data['Electrical Downtilt'])
+    train_x['thetaME']=train_x['thetaM']+train_x['thetaE']
+    train_x['dHv']=train_x['Hb']-train_x['d']*np.tan(train_x['thetaME'])
+    train_x['Hb-Hue-dHv']=train_x['Hb-Hue']-train_x['dHv']
+    train_x['Hb-Ha-dHv']=train_x['Hb']-data['Altitude']-train_x['dHv']
+    train_x['Hue-dHv']=train_x['Hue']-train_x['dHv']
+    
+    train_x['theta_uc']=np.arctan2(train_x['Hb-Hue'],train_x['d'])
+    #train_x['log_freq']=np.log10(data['Frequency Band'])
+    train_x['log_Hb']=np.log10(train_x['Hb']+1)
+    train_x['log_Hue']=np.log10(train_x['Hue']+1)
+    train_x['log_d']=np.log10(train_x['d']+1)
+    train_x['dmulHue_log']=train_x['log_Hue']*train_x['log_d']
+    train_x['Azimuth_rad']=np.radians(data['Azimuth'])
+    
+    train_x['dX']=data['X']-data['Cell X']
+    train_x['dY']=data['Y']-data['Cell Y']
+    train_x['theta_XY']=np.arctan2(train_x['dX'],train_x['dY'])
+    train_x['theta_XY'].loc[train_x['dY']<0]=train_x['theta_XY'].loc[train_x['dY']<0]+pi
+    train_x['theta_XY'].loc[(train_x['dY']>=0)&(train_x['dX']<0)]=train_x['theta_XY'].loc[(train_x['dY']>=0)&(train_x['dX']<0)]+2*pi
+    train_x['theta_XY_A']=train_x['theta_XY']-train_x['Azimuth_rad']
+    train_x=train_x.drop(['Azimuth_rad','theta_XY','dX','dY'],axis=1)
+    
+    train_x['Larc']=np.sin(train_x['theta_XY_A']/2)*train_x['d']
+    train_x['theta_T']=np.arctan2(train_x['Hue-dHv'],train_x['Larc'])
+    return train_x
